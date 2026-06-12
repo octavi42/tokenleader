@@ -1,0 +1,66 @@
+name: Bug report
+description: Something is broken in the server, daemon, installer, or dashboard.
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - server
+        - daemon
+        - installer / uninstaller
+        - dashboard
+        - docs
+        - other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: >
+        Server → boot log or your deploy's image tag. Daemon → run
+        `~/.local/bin/tokenleader --version`, or check the fleet panel on
+        your dashboard, or the `daemon_start` line at the top of the newest
+        file in `~/Library/Logs/tokenleader/`.
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: deploy
+    attributes:
+      label: How is the server deployed?
+      options:
+        - Railway
+        - Docker / Compose
+        - Fly.io
+        - macOS (LaunchAgent / bare process)
+        - other
+  - type: input
+    id: platform
+    attributes:
+      label: Daemon platform (if daemon-related)
+      placeholder: macOS 15.5, Apple Silicon
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: >
+        Server logs, or `~/Library/Logs/tokenleader/daemon.jsonl` lines.
+        REDACT tokens and any URLs you don't want public.
+      render: shell
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed secrets, tokens, and private URLs from this report.
+          required: true

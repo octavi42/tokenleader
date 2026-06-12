@@ -1,0 +1,7 @@
+dbs:
+  - path: /data/tokenleader.sqlite
+    replicas:
+      - type: s3
+        bucket: ${LITESTREAM_BUCKET}
+        path: tokenleader
+        endpoint: ${LITESTREAM_ENDPOINT}   # e.g. https://<acct>.r2.cloudflarestorage.com; empty for AWS S3

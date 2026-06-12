@@ -1,0 +1,48 @@
+services:
+  tokenleader:
+    image: ghcr.io/anaralabs/tokenleader:latest   # pin a version tag for cautious upgrades
+    container_name: tokenleader
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s        # > the 8s drain cap
+    ports:
+      # Bind to localhost when fronted by a local reverse proxy (Caddy/Traefik):
+      #   - "127.0.0.1:8787:8787"
+      - "8787:8787"
+    environment:
+      # STRONGLY RECOMMENDED in production: prevents X-Forwarded-Host spoofing of rendered /install
+      # scripts. Optional so that clone-and-`docker compose up -d` works with zero env (the server
+      # logs a loud boot warning while unset).
+      TOKENLEADER_SERVER_URL: ${TOKENLEADER_SERVER_URL:-}
+      # Production hardening: replace the line above with a hard requirement once you have a URL:
+      #   TOKENLEADER_SERVER_URL: ${TOKENLEADER_SERVER_URL:?set TOKENLEADER_SERVER_URL to your public https URL}
+      TOKENLEADER_TEAM_NAME: ${TOKENLEADER_TEAM_NAME:-}
+      TOKENLEADER_ADMIN_TOKEN: ${TOKENLEADER_ADMIN_TOKEN:-}
+      TOKENLEADER_DASHBOARD_TOKEN: ${TOKENLEADER_DASHBOARD_TOKEN:-}
+      TOKENLEADER_API_TOKEN: ${TOKENLEADER_API_TOKEN:-}
+      TOKENLEADER_CURSOR_TOKEN: ${TOKENLEADER_CURSOR_TOKEN:-}
+      TOKENLEADER_CURSOR_USER_MAP: ${TOKENLEADER_CURSOR_USER_MAP:-}
+      # GitHub mirror runs only when both repo and token are set; leave them unset to keep it off.
+      TOKENLEADER_GH_REPO: ${TOKENLEADER_GH_REPO:-anaralabs/tokenleader}
+      TOKENLEADER_GH_TOKEN: ${TOKENLEADER_GH_TOKEN:-}
+    volumes:
+      - tokenleader-data:/data
+
+  # Optional: streaming SQLite backup to any S3-compatible bucket (R2/B2/MinIO).
+  # Enable with: docker compose --profile backup up -d
+  litestream:
+    image: litestream/litestream:0.3
+    profiles: ["backup"]
+    restart: unless-stopped
+    command: replicate -config /etc/litestream.yml
+    volumes:
+      - tokenleader-data:/data
+      - ./deploy/litestream.yml:/etc/litestream.yml:ro
+    environment:
+      LITESTREAM_ACCESS_KEY_ID: ${LITESTREAM_ACCESS_KEY_ID:?}
+      LITESTREAM_SECRET_ACCESS_KEY: ${LITESTREAM_SECRET_ACCESS_KEY:?}
+      LITESTREAM_BUCKET: ${LITESTREAM_BUCKET:?}
+      LITESTREAM_ENDPOINT: ${LITESTREAM_ENDPOINT:-}
+
+volumes:
+  tokenleader-data:

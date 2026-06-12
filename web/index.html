@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content="tokenleader" />
+    <meta name="description" content="Self-hosted AI token-usage leaderboard for your team" />
+    <!-- The <title> and og:title below are serve-time placeholders: the
+         server rewrites "tokenleader" to "tokenleader · <team>" when
+         TOKENLEADER_TEAM_NAME is set (src/server/branding.ts), so keep
+         their exact text in sync with injectBranding's patterns. -->
+    <title>tokenleader</title>
+    <meta property="og:title" content="tokenleader" />
+    <meta property="og:description" content="Self-hosted AI token-usage leaderboard for your team" />
+    <meta property="og:site_name" content="tokenleader" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafaf9" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121212" />
+    <!-- Brand assets come off the server (/brand/*): built-in neutral marks
+         by default, operator files from <data-dir>/brand/ when present. -->
+    <link rel="icon" type="image/svg+xml" href="/brand/favicon.svg" />
+    <link rel="apple-touch-icon" href="/brand/logo.svg" />
+    <script>
+      // Theme boot: apply the saved override before first paint so a dark
+      // preference never flashes light. No saved value = follow the OS via
+      // the prefers-color-scheme blocks in styles.css.
+      (function () {
+        try {
+          var t = localStorage.getItem("tokenleaderTheme");
+          if (t === "dark" || t === "light") document.documentElement.dataset.theme = t;
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

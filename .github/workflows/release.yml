@@ -1,0 +1,238 @@
+# Tag-driven release pipeline. ONE channel: push an annotated tag `vX.Y.Z`
+# (cut with scripts/release.sh) and this workflow builds the darwin daemons,
+# emits the dual-shape manifest, creates the GitHub release (draft ->
+# published flip = the atomic publication event), and pushes the multi-arch
+# server image to ghcr.
+#
+# Versioning: TAGS ARE THE VERSION. package.json stays 0.1.0 and is not
+# consulted — there is deliberately NO tag==package.json guard.
+# The guards that do run fail the BUILD, never the fleet:
+#   (b) `--version` field 1 of every built binary == the tag (a manifest/
+#       binary version divergence would false-flag the whole fleet as stale
+#       on /stats/fleet);
+#   (c) legacy manifest arm64/x64 keys byte-equal their platforms.darwin-*
+#       mirrors (the fleet-frozen v1 consumer shape);
+#   (e) no .env/.env.local at build time (Bun 1.1.38 inlines build-cwd env
+#       files into compiled binaries).
+#
+# Secrets: NONE beyond the implicit GITHUB_TOKEN. CI does not render
+# install/uninstall scripts (the running server renders them at request
+# time) and does not bake server URLs into anything.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  daemons:
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # Daemon compile pin. The streaming auto-update download path in
+          # the fielded daemons was verified end-to-end on this version;
+          # never bump without re-running the slow-download/blackhole repros.
+          bun-version: "1.1.38"
+
+      - name: Guard (e) — no env files in the build cwd
+        # Bun 1.1.38 `build --compile` inlines .env/.env.local from the cwd
+        # into the binary. A fresh checkout should never have them; fail loud
+        # if one was ever committed.
+        run: test ! -e .env -a ! -e .env.local
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build darwin daemons (version = tag)
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          bash scripts/build-daemon.sh bun-darwin-arm64 bin/tokenleader-darwin-arm64
+          bash scripts/build-daemon.sh bun-darwin-x64 bin/tokenleader-darwin-x64
+          ls -lh bin/
+
+      - name: Guard (b) — built binaries report the tag
+        # arm64 runs natively on the macos-14 arm64 runner; the x64 binary
+        # runs under Rosetta 2 (preinstalled on GitHub's arm64 macOS images).
+        # `--version` prints "<BUILD_VERSION> <BUILD_SHA> <platformKey>".
+        run: |
+          set -euo pipefail
+          for bin in bin/tokenleader-darwin-arm64 bin/tokenleader-darwin-x64; do
+            got="$("${bin}" --version | awk '{print $1}')"
+            if [ "${got}" != "${GITHUB_REF_NAME}" ]; then
+              echo "guard (b) failed: ${bin} --version reports '${got}', tag is '${GITHUB_REF_NAME}'" >&2
+              exit 1
+            fi
+            echo "guard (b) ok: ${bin} -> ${got}"
+          done
+
+      - name: Build manifest.json (dual shape)
+        run: bun scripts/make-manifest.ts --version "${GITHUB_REF_NAME}" --bin-dir bin --out bin/manifest.json
+
+      - name: Guard (c) — legacy keys byte-equal the darwin platforms map
+        run: |
+          jq -e '.version == env.GITHUB_REF_NAME
+                 and .arm64 == .platforms."darwin-arm64"
+                 and .x64 == .platforms."darwin-x64"' bin/manifest.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-bin
+          path: |
+            bin/tokenleader-darwin-arm64
+            bin/tokenleader-darwin-x64
+            bin/manifest.json
+          if-no-files-found: error
+
+  publish-release:
+    needs: daemons
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-bin
+          path: bin
+
+      - name: Legacy-named asset copies for the fielded fleet
+        # Fielded daemons (and server mirrors) still fetch
+        # `anara-leaderboard-{arm64,x64}`. Publish byte-identical
+        # copies under the legacy names alongside the canonical ones.
+        run: |
+          cp bin/tokenleader-darwin-arm64 bin/anara-leaderboard-arm64
+          cp bin/tokenleader-darwin-x64 bin/anara-leaderboard-x64
+          ls -lh bin/
+
+      - name: Create draft release, upload, then flip live
+        # Draft -> published is the atomic publication event: the
+        # `releases/latest` marker never sees a half-uploaded release.
+        # Stable tags get --latest (what daemons/mirrors follow); tags
+        # containing '-' (rc/prerelease) get --prerelease and must NEVER
+        # take the latest marker — that would roll the live fleet.
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          gh release create "${TAG}" \
+            --draft \
+            --title "${TAG}" \
+            --notes "tokenleader ${TAG} — daemon binaries + manifest. Server image: ghcr.io/${GH_REPO%%/*}/tokenleader:${TAG}." \
+            bin/tokenleader-darwin-arm64 \
+            bin/tokenleader-darwin-x64 \
+            bin/anara-leaderboard-arm64 \
+            bin/anara-leaderboard-x64 \
+            bin/manifest.json
+          case "${TAG}" in
+            *-*) gh release edit "${TAG}" --draft=false --prerelease ;;
+            *)   gh release edit "${TAG}" --draft=false --latest ;;
+          esac
+          echo "Published ${TAG}."
+
+  server-image:
+    needs: publish-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Native runners per arch — NO QEMU (bun install under qemu-user is
+          # slow/flaky). Each leg pushes by digest; the
+          # image-manifest job stitches the multi-arch tags.
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Derive lowercase image name
+        id: image
+        # ghcr requires a lowercase namespace; github.repository_owner can
+        # carry uppercase. Image name is ghcr.io/<owner>/tokenleader
+        # regardless of the repo's own name.
+        run: |
+          echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tokenleader" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            SERVER_VERSION=${{ github.ref_name }}
+          outputs: type=image,name=${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-digest-${{ strategy.job-index }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  image-manifest:
+    needs: server-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: image-digest-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch tags
+        # ghcr.io/<owner>/tokenleader:<tag> always; :latest only for stable
+        # tags (compose + Watchtower adopters track :latest — an rc must
+        # never roll them, same condition as --prerelease above).
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tokenleader"
+          TAGS=(-t "${IMAGE}:${GITHUB_REF_NAME}")
+          case "${GITHUB_REF_NAME}" in
+            *-*) echo "prerelease tag — skipping :latest" ;;
+            *)   TAGS+=(-t "${IMAGE}:latest") ;;
+          esac
+          cd /tmp/digests
+          # shellcheck disable=SC2046
+          docker buildx imagetools create "${TAGS[@]}" \
+            $(printf "${IMAGE}@sha256:%s " *)
+          docker buildx imagetools inspect "${IMAGE}:${GITHUB_REF_NAME}"

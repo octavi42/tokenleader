@@ -1,0 +1,973 @@
+/* =========================================================================
+   tokenleader SPA — design tokens. System font stacks (no external assets);
+   prefers-color-scheme is the theme default (data-theme on <html> is the
+   explicit override).
+   ========================================================================= */
+
+:root {
+  --bg-app: hsl(60 1% 98%);
+  --bg-object: hsl(0 0% 100%);
+  --bg-primary: hsl(0 0% 100%);
+  --bg-inverse: hsl(0 0% 9%);
+  --hover-app: hsl(0 0% 90%);
+  --active-app: hsl(0 0% 88%);
+  --hover-object: hsl(0 0% 96%);
+  --text-primary: hsl(0 0% 6%);
+  --text-secondary: hsl(0 0% 40%);
+  --text-tertiary: hsl(0 0% 46%);
+  --text-inverse: hsl(0 0% 97%);
+  --destructive: hsl(349 100% 42%);
+  --border-primary: hsl(0 0% 86%);
+  --border-muted: hsl(0 0% 95%);
+  --accent-green: hsl(135 59% 38%);
+  --accent-orange: hsl(32 100% 40%);
+  --ghost-a: hsl(0 0% 93%);
+  --ghost-b: hsl(0 0% 97%);
+  /* Contribution-grid ramp: near-monochrome, whisper-gray to near-ink.
+     Consumed via fill="var(--cg-N)". */
+  --cg-0: hsl(0 0% 94%);
+  --cg-1: hsl(0 0% 80%);
+  --cg-2: hsl(0 0% 62%);
+  --cg-3: hsl(0 0% 36%);
+  --cg-4: hsl(0 0% 10%);
+  --radius: 0.5rem;
+  --radius-card: 0.75rem;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --font-body: -apple-system, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light;
+}
+
+/* Dark tokens, twice: once for the OS default, once for the explicit
+   override. CSS can't merge a media query and a selector into one rule. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-app: hsl(0 0% 7%);
+    --bg-object: hsl(0 0% 12%);
+    --bg-primary: hsl(0 0% 9%);
+    --bg-inverse: hsl(0 0% 97%);
+    --hover-app: hsl(0 0% 10%);
+    --active-app: hsl(0 0% 16%);
+    --hover-object: hsl(0 0% 15%);
+    --text-primary: hsl(0 0% 97%);
+    --text-secondary: hsl(0 0% 55%);
+    --text-tertiary: hsl(0 0% 56%);
+    --text-inverse: hsl(0 0% 6%);
+    --destructive: hsl(349 100% 59%);
+    --border-primary: hsl(0 0% 15%);
+    --border-muted: hsl(0 0% 13%);
+    --accent-green: hsl(135 59% 49%);
+    --accent-orange: hsl(32 100% 50%);
+    --ghost-a: hsl(0 0% 15%);
+    --ghost-b: hsl(0 0% 19%);
+    --cg-0: hsl(0 0% 13%);
+    --cg-1: hsl(0 0% 22%);
+    --cg-2: hsl(0 0% 35%);
+    --cg-3: hsl(0 0% 55%);
+    --cg-4: hsl(0 0% 80%);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg-app: hsl(0 0% 7%);
+  --bg-object: hsl(0 0% 12%);
+  --bg-primary: hsl(0 0% 9%);
+  --bg-inverse: hsl(0 0% 97%);
+  --hover-app: hsl(0 0% 10%);
+  --active-app: hsl(0 0% 16%);
+  --hover-object: hsl(0 0% 15%);
+  --text-primary: hsl(0 0% 97%);
+  --text-secondary: hsl(0 0% 55%);
+  --text-tertiary: hsl(0 0% 56%);
+  --text-inverse: hsl(0 0% 6%);
+  --destructive: hsl(349 100% 59%);
+  --border-primary: hsl(0 0% 15%);
+  --border-muted: hsl(0 0% 13%);
+  --accent-green: hsl(135 59% 49%);
+  --accent-orange: hsl(32 100% 50%);
+  --ghost-a: hsl(0 0% 15%);
+  --ghost-b: hsl(0 0% 19%);
+  --cg-0: hsl(0 0% 13%);
+  --cg-1: hsl(0 0% 22%);
+  --cg-2: hsl(0 0% 35%);
+  --cg-3: hsl(0 0% 55%);
+  --cg-4: hsl(0 0% 80%);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+body {
+  min-height: 100vh;
+}
+
+.mono,
+.stat .num,
+td.num,
+.lb-table td.user-cell,
+header .brand,
+header .poll,
+.cmd code {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: var(--text-secondary);
+}
+.muted-2 {
+  color: var(--text-tertiary);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+/* ---- header ------------------------------------------------------------ */
+header {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 16px 32px 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+header .brand {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.brand-logo {
+  /* <img src="/brand/logo.svg"> — server-supplied, possibly operator art.
+     object-fit keeps a non-square custom logo from distorting. */
+  width: 16px;
+  height: 16px;
+  display: block;
+  object-fit: contain;
+}
+header .team {
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+header .spacer {
+  flex: 1;
+}
+header .poll {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  vertical-align: middle;
+  margin-right: 6px;
+  margin-bottom: 1px;
+}
+.dot.bad {
+  background: var(--destructive);
+}
+.theme-toggle {
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.theme-toggle:hover {
+  background: var(--hover-app);
+  color: var(--text-primary);
+}
+
+/* ---- layout ------------------------------------------------------------ */
+.page-controls {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 18px 32px 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.wrap {
+  padding: 0 32px 48px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+section {
+  margin-top: 20px;
+}
+
+/* ---- range pills --------------------------------------------------------- */
+.range {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  flex-wrap: wrap;
+}
+.range button {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+.range button:hover {
+  background: var(--hover-app);
+  color: var(--text-primary);
+}
+.range button.on {
+  background: var(--active-app);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.utc-chip {
+  align-self: center;
+  margin-left: 6px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  cursor: help;
+}
+
+/* ---- focus mode (?user=) -------------------------------------------------- */
+/* Clear chip in the controls row: "✕ alice". */
+.focus-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  background: var(--active-app);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.focus-chip:hover {
+  background: var(--hover-app);
+}
+/* "showing: alice" — floats in the section gap ABOVE the cards/grid
+   (absolute, so toggling focus never shifts layout and never overlaps
+   card content). */
+.strip,
+.contribution-grid {
+  position: relative;
+}
+.focus-note {
+  position: absolute;
+  top: -16px;
+  right: 0;
+  z-index: 1;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+/* Leaderboard rows are buttons in focus mode. */
+.lb-table tr.lb-row {
+  cursor: pointer;
+}
+.lb-table tr.lb-row:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: -2px;
+}
+.lb-table tr.is-selected > td {
+  background: var(--active-app);
+}
+.lb-table tr.is-selected > td:first-child {
+  box-shadow: inset 2px 0 0 var(--text-primary);
+}
+/* Non-focused rows stay visible but recede (leaderboard, fleet,
+   uninstalled — same treatment for visual continuity). */
+tr.is-dimmed > td {
+  opacity: 0.45;
+  color: var(--text-secondary);
+}
+
+/* ---- company affiliation (?company=) -------------------------------------- */
+/* Favicon (google s2) — shared by the row chip and the filter pills. */
+.company-favicon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 3px;
+}
+/* Favicon leads the username (Twitter-style); the domain lives in the
+   title tooltip. Flex centers icon and text on the same axis. */
+.user-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.company-chip {
+  display: inline-flex;
+  align-items: center;
+}
+/* Filter pills in the controls row (rendered only with ≥2 companies);
+   same pill language as .focus-chip, quieter at rest. */
+/* Company filter row between the heatmap and the leaderboard. */
+.company-row {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.company-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.company-pill:hover {
+  background: var(--hover-app);
+  color: var(--text-primary);
+}
+.company-pill.on {
+  background: var(--active-app);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ---- contribution grid ---------------------------------------------------- */
+/* The inner div (not the outer) is the scroll container so the focus-mode
+   note can sit just above the grid without being clipped by overflow. */
+.contribution-grid .cg-inner {
+  display: block;
+  min-width: 100%;
+  overflow-x: auto;
+}
+.contribution-grid svg {
+  display: block;
+  shape-rendering: geometricprecision;
+}
+.contribution-grid .cg-cell {
+  rx: 2;
+  ry: 2;
+}
+.contribution-grid .cg-cell:hover {
+  opacity: 0.7;
+}
+.contribution-grid .cg-month {
+  font-size: 11px;
+  fill: var(--text-tertiary);
+  font-weight: 500;
+}
+.contribution-grid .cg-dow {
+  font-size: 10px;
+  fill: var(--text-tertiary);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .contribution-grid .cg-cell {
+    transition: opacity 0.12s ease-in-out;
+  }
+  .contribution-grid.is-loading .cg-inner {
+    animation: skeleton-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes skeleton-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+}
+.cg-tooltip {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  background: var(--bg-inverse);
+  color: var(--text-inverse);
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  border-radius: 6px;
+  font-weight: 500;
+}
+.cg-tooltip .cg-tt-date {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.cg-tooltip .cg-tt-row {
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- stats strip --------------------------------------------------------- */
+.strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.stat {
+  background: var(--bg-object);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-card);
+  padding: 18px 20px;
+}
+.stat .lbl {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+.stat .num {
+  margin-top: 12px;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  min-height: 31px;
+}
+
+/* ---- cards / tables ------------------------------------------------------ */
+.card {
+  background: var(--bg-object);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-card);
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+th,
+td {
+  padding: 12px 14px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border-muted);
+}
+tbody tr:last-child td {
+  border-bottom: none;
+}
+th {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  height: 36px;
+}
+td {
+  font-size: 13px;
+}
+td.num,
+th.num {
+  text-align: right;
+}
+/* Numbers read bold (the original dashboard's weight); the u/a sub-line
+   and relative times stay light. */
+td.num {
+  font-weight: 600;
+}
+td.num .msg-split {
+  font-weight: 400;
+}
+th.num {
+  font-weight: 500;
+}
+.fleet-version {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.fleet-version .muted-2 {
+  font-weight: 400;
+}
+tbody tr:hover td {
+  background: var(--hover-object);
+}
+.lb-table th,
+.lb-table td {
+  padding: 14px 18px;
+}
+.lb-table td.user-cell {
+  font-weight: 600;
+  font-size: 14px;
+}
+th.rank-col,
+td.rank {
+  text-align: center;
+  width: 48px;
+  color: var(--text-tertiary);
+}
+.msg-split {
+  color: var(--text-secondary);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.icon.trophy {
+  width: 18px;
+  height: 18px;
+  fill: var(--accent-orange);
+  vertical-align: middle;
+}
+.empty {
+  padding: 20px 18px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--text-primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ---- fleet badges ---------------------------------------------------------- */
+.fleet-summary {
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.fleet-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.fleet-ok {
+  color: var(--accent-green);
+  border-color: var(--accent-green);
+}
+.fleet-stale {
+  color: var(--accent-orange);
+  border-color: var(--accent-orange);
+}
+.fleet-unknown,
+.fleet-neutral {
+  color: var(--text-tertiary);
+  border-color: var(--border-primary);
+}
+
+/* ---- skeletons / loading --------------------------------------------------- */
+.ghost {
+  color: transparent;
+  background: var(--ghost-a);
+  border-radius: 4px;
+  user-select: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ghost {
+    background: linear-gradient(90deg, var(--ghost-a) 25%, var(--ghost-b) 50%, var(--ghost-a) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+}
+
+/* Range switch: previous data stays visible but dims until the matching
+   response lands (data-range-loading set from isPlaceholderData).
+   data-section-loading is the per-section variant — set on exactly the
+   sections whose query changed (focus-mode switches). */
+[data-range-loading] .dimmable,
+[data-section-loading] {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* Focus-mode transitions: 180ms opacity/background so dimming reads as a
+   crossfade, never a blink. Guarded by reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .dimmable,
+  [data-section-loading],
+  .contribution-grid {
+    transition: opacity 0.18s ease;
+  }
+  .lb-table tr > td,
+  .card tbody tr > td {
+    transition:
+      opacity 0.18s ease,
+      background-color 0.18s ease;
+  }
+}
+
+/* ---- error banner ------------------------------------------------------------ */
+.conn-banner {
+  margin-top: 20px;
+  padding: 10px 16px;
+  border: 1px solid var(--destructive);
+  border-radius: var(--radius-card);
+  color: var(--destructive);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.conn-banner button {
+  font: inherit;
+  font-size: 12px;
+  color: var(--destructive);
+  background: transparent;
+  border: 1px solid var(--destructive);
+  border-radius: var(--radius);
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+/* ---- first-run hero ------------------------------------------------------------ */
+.hero {
+  max-width: 640px;
+  margin: 48px auto 0;
+  text-align: center;
+}
+.hero h1 {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.hero p {
+  margin-top: 12px;
+}
+.hero .muted {
+  font-size: 13px;
+}
+.cmd {
+  margin-top: 16px;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.cmd code {
+  flex: 1;
+  text-align: left;
+  font-size: 12px;
+  padding: 10px 14px;
+  background: var(--bg-object);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.cmd button {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 14px;
+  background: var(--bg-inverse);
+  color: var(--text-inverse);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+/* ---- footer (persistent add-a-teammate) -------------------------------------------- */
+.page-footer {
+  margin-top: 36px;
+}
+.add-teammate summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.add-teammate[open] summary {
+  color: var(--text-primary);
+}
+.add-teammate p {
+  margin-top: 10px;
+  font-size: 12px;
+}
+.add-teammate .cmd {
+  margin-top: 10px;
+  max-width: 640px;
+}
+.add-teammate .handle-input {
+  margin-top: 10px;
+  display: block;
+  width: 220px;
+  padding: 7px 10px;
+  font: 500 13px var(--font-mono);
+  color: var(--text-primary);
+  background: var(--bg-object);
+  border: 1px solid var(--border-primary);
+  border-radius: 7px;
+  outline: none;
+}
+.add-teammate .handle-input:focus {
+  border-color: var(--text-tertiary);
+}
+.add-teammate .handle-input::placeholder {
+  color: var(--text-tertiary);
+}
+.add-teammate .handle-input.invalid,
+.add-teammate .handle-input.invalid:focus {
+  border-color: var(--destructive);
+}
+.add-teammate .input-error {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--destructive);
+}
+
+/* Keyboard-shortcut hint chip (right-aligned in the controls row). */
+.kbd-hint {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text-secondary);
+  background: var(--bg-object);
+  border: 1px solid var(--border-primary);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 2px 5px;
+  min-width: 18px;
+  text-align: center;
+  display: inline-block;
+}
+.meta-strip {
+  margin-top: 28px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.meta-strip .spacer {
+  flex: 1;
+}
+.meta-strip .admin-link {
+  color: var(--text-tertiary);
+  text-decoration: none;
+}
+.meta-strip .admin-link:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+/* ---- admin panel (/admin) ----------------------------------------------- */
+.brand-link {
+  color: inherit;
+  text-decoration: none;
+}
+.back-link {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.back-link:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+.admin-wrap {
+  max-width: 720px;
+}
+.admin-wrap label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.admin-wrap input,
+.admin-wrap select {
+  width: 100%;
+  padding: 6px 12px;
+  height: 32px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  border-radius: var(--radius);
+}
+.admin-wrap input::placeholder {
+  color: var(--text-tertiary);
+}
+.token-card {
+  padding: 18px 20px;
+}
+.field-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.forget-btn {
+  margin-top: 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.forget-btn:hover {
+  background: var(--hover-app);
+  color: var(--text-primary);
+}
+.locked-note,
+.empty-fleet {
+  margin-top: 20px;
+  font-size: 13px;
+}
+.danger-card {
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-card);
+  background: var(--bg-object);
+  padding: 18px 20px;
+}
+.danger-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--destructive);
+}
+.danger-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 14px;
+}
+.danger-grid > div {
+  grid-column: span 1;
+}
+.danger-btn {
+  grid-column: 1 / -1;
+  padding: 8px 16px;
+  height: 36px;
+  border: none;
+  background: hsl(342 98% 94%);
+  color: var(--destructive);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+:root[data-theme="dark"] .danger-btn {
+  background: hsl(342 98% 16%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .danger-btn {
+    background: hsl(342 98% 16%);
+  }
+}
+.danger-btn:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+.danger-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.danger-status {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-height: 16px;
+}
+.danger-status.ok {
+  color: var(--accent-green);
+}
+.danger-status.bad {
+  color: var(--destructive);
+}
+
+/* ---- responsive (single ~720px breakpoint) ----------------------------------------- */
+@media (max-width: 720px) {
+  header,
+  .page-controls,
+  .wrap {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  /* Tables become horizontal scroll containers inside their cards. */
+  .card table {
+    min-width: 640px;
+  }
+  .stat .num {
+    font-size: 22px;
+    min-height: 25px;
+  }
+  .cmd {
+    flex-direction: column;
+  }
+  .cmd button {
+    padding: 8px 14px;
+  }
+  .danger-grid {
+    grid-template-columns: 1fr;
+  }
+}

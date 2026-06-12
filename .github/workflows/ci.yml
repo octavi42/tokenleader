@@ -1,0 +1,119 @@
+# CI tests and gates; no workflow publishes on any push (release-binaries.yml
+# is workflow_dispatch-only; release.yml fires on tags).
+#
+# Bun pins are split on purpose: tests/typecheck/web run on the server pin
+# 1.3.14; daemon binaries are compiled on 1.1.38 (release.yml).
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, oss-v0.1]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # The TZ matrix is load-bearing: date handling promises identical
+        # half-open UTC semantics regardless of host timezone.
+        tz: ["UTC", "America/New_York"]
+    env:
+      TZ: ${{ matrix.tz }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # Server pin. Daemon builds stay on 1.1.38 in release.yml.
+          bun-version: "1.3.14"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Tests
+        run: bun test
+
+      - name: Typecheck
+        run: bunx tsc --noEmit
+
+      - name: Rendered install/uninstall scripts parse
+        # Render with a placeholder URL and syntax-check. Catches
+        # template-literal breakage at CI time instead of on an installing
+        # machine. CI does NOT publish these — the running server renders
+        # them at request time.
+        run: |
+          mkdir -p /tmp/render
+          bun -e "import('./src/server/install-script.ts').then(m => process.stdout.write(m.renderInstallScript('https://leaderboard.example.com')))" > /tmp/render/install.sh
+          bun -e "import('./src/server/install-script.ts').then(m => process.stdout.write(m.renderInstallScript('https://leaderboard.example.com', { joinRequired: true })))" > /tmp/render/install-join.sh
+          bun -e "import('./src/server/install-script.ts').then(m => process.stdout.write(m.renderUninstallScript('https://leaderboard.example.com')))" > /tmp/render/uninstall.sh
+          bash -n /tmp/render/install.sh
+          bash -n /tmp/render/install-join.sh
+          bash -n /tmp/render/uninstall.sh
+
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Biome format check
+        run: |
+          bun install --frozen-lockfile
+          bunx biome ci .
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Build SPA
+        # web/package.json's build script runs `tsc --noEmit && vite build`,
+        # so this is the web typecheck too.
+        working-directory: web
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+  scrub-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Scrub gate
+        # Fails when any burned pre-OSS token appears in the tracked tree.
+        # The forbidden pattern is assembled at runtime from non-matching
+        # fragments — a literal pattern would both republish the tokens and
+        # self-match this workflow. Allowlist (fleet-compat legacy names):
+        # `sh.anara.leaderboard` and `anara-leaderboard` are stripped from
+        # each candidate line BEFORE the forbidden match, so anything else
+        # forbidden on the same line still fails. The one excluded path is
+        # the scrub rules file — its left-hand sides ARE the lexicon.
+        run: |
+          set -euo pipefail
+          FORBIDDEN="$(printf '%s|%s|%s|%s|%s' 'anara''@' 'unr''iddle' 'crise''mcr' 'tail''9ba393' 'pub-''7ebaae9f')"
+          ALLOWED='sh\.anara\.leaderboard|anara-leaderboard'
+          HITS="$(git grep -nIE "${FORBIDDEN}" -- . ':(exclude)scripts/scrub-replacements.txt' | sed -E "s/${ALLOWED}//g" | grep -E "${FORBIDDEN}" || true)"
+          if [ -n "${HITS}" ]; then
+            echo "Scrub gate: forbidden pre-OSS tokens found in the tracked tree:" >&2
+            echo "${HITS}" >&2
+            exit 1
+          fi
+          echo "Scrub gate clean."

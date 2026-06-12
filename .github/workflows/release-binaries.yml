@@ -1,0 +1,153 @@
+# Legacy publisher: builds daemon binaries + rendered install/uninstall
+# scripts and publishes them as GitHub Release assets on this repo.
+#
+# Each run produces TWO releases:
+#   1. build-<utc-stamp>-<short-sha>  immutable, one per run (history).
+#   2. latest                         mutable rolling pointer; clobbered to
+#                                     match the freshest build.
+# If a bad build slips through, recreate `latest` against an older
+# build-<...> release to roll back.
+#
+# Required repo secrets:
+#   TOKENLEADER_SERVER_URL Public-facing server URL (e.g.
+#                          https://leaderboard.example.com). Baked
+#                          into install.sh / uninstall.sh at render time so the
+#                          scripts know where the daemon should POST events.
+#
+# Auth: the default GITHUB_TOKEN — no PAT needed.
+
+name: Release binaries
+
+# Manual-only on purpose: the push-to-main trigger was removed so a push can
+# never double-publish against the tag-driven pipeline in
+# .github/workflows/release.yml — which is THE release channel. This file
+# survives only as an emergency lever for the fielded fleet.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: release-binaries
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: macos-14
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # Pinned so CI reproduces the exact daemon binary that was tested
+          # end-to-end (anti-spin + streaming auto-update download); don't
+          # bump without re-testing the slow-download/blackhole repros.
+          bun-version: "1.1.38"
+
+      - name: Install dependencies
+        # Lockfile is verified under both 1.1.38 and 1.3.14 — no
+        # `|| bun install` fallback.
+        run: bun install --frozen-lockfile
+
+      - name: Build cross-arch daemons
+        run: |
+          # VERSION must equal the manifest `version` below (short SHA) — the
+          # server string-compares the two to flag stale daemons.
+          export VERSION="$(git rev-parse --short HEAD)"
+          bun run build:daemon-arm64
+          bun run build:daemon-x64
+          ls -lh bin/
+
+      - name: Render install.sh + uninstall.sh
+        env:
+          SERVER_URL: ${{ secrets.TOKENLEADER_SERVER_URL }}
+        run: |
+          if [ -z "${SERVER_URL}" ]; then
+            echo "Missing secret TOKENLEADER_SERVER_URL — set it to the public" \
+                 "URL teammates curl|bash from (e.g. the Tailscale Funnel URL)." >&2
+            exit 1
+          fi
+          bun -e "import('./src/server/install-script.ts').then(m => process.stdout.write(m.renderInstallScript('${SERVER_URL}')))" > bin/install.sh
+          bun -e "import('./src/server/install-script.ts').then(m => process.stdout.write(m.renderUninstallScript('${SERVER_URL}')))" > bin/uninstall.sh
+          chmod +x bin/install.sh bin/uninstall.sh
+          # Sanity-check both rendered scripts parse as valid bash before
+          # we publish. Catches template-literal bugs at render time, not
+          # on every teammate's machine.
+          bash -n bin/install.sh
+          bash -n bin/uninstall.sh
+          ls -lh bin/install.sh bin/uninstall.sh
+
+      - name: Build manifest.json
+        run: |
+          # SHA-256 of each binary lets the daemon verify the bytes it
+          # downloaded match what CI published. The daemon hits its own
+          # server's /manifest.json + /bin/<arch> routes — `url` fields are
+          # omitted so a stale or hostile manifest can't redirect daemons.
+          ARM_SHA="$(shasum -a 256 bin/anara-leaderboard-arm64 | awk '{print $1}')"
+          X64_SHA="$(shasum -a 256 bin/anara-leaderboard-x64 | awk '{print $1}')"
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          PUBLISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          printf '{"version":"%s","publishedAt":"%s","arm64":{"sha256":"%s"},"x64":{"sha256":"%s"}}\n' \
+            "${SHORT_SHA}" "${PUBLISHED_AT}" "${ARM_SHA}" "${X64_SHA}" \
+            > bin/manifest.json
+          cat bin/manifest.json
+
+      - name: Publish to GH Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          ASSETS=(
+            bin/install.sh
+            bin/uninstall.sh
+            bin/anara-leaderboard-arm64
+            bin/anara-leaderboard-x64
+            bin/manifest.json
+          )
+
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          STAMP="$(date -u +%Y%m%d-%H%M%S)"
+          # Per-commit immutable release: "build-<utc-stamp>-<short-sha>".
+          # Lets us roll back by retagging `latest` if a bad build slips
+          # through.
+          BUILD_TAG="build-${STAMP}-${SHORT_SHA}"
+
+          # 1. Create the per-commit release. Always new, never clobbered.
+          # --latest=false so GH's "Latest" badge stays on the `latest` tag
+          # (otherwise GH auto-bumps the badge to whichever release is newest
+          # by date, which would shadow our rolling pointer).
+          echo "Creating immutable build release ${BUILD_TAG}"
+          gh release create "${BUILD_TAG}" \
+            --title "Build ${SHORT_SHA} (${STAMP} UTC)" \
+            --target "${{ github.sha }}" \
+            --latest=false \
+            --notes "Auto-published from ${{ github.sha }}." \
+            "${ASSETS[@]}"
+
+          # 2. Upsert the rolling `latest` release — what teammates and the
+          # daemon `gh release download` against. Mutable on purpose: this is
+          # the floating pointer to whichever build-<sha> is currently
+          # canonical. If `latest` doesn't exist yet, create it; otherwise
+          # clobber its assets so it always points at the freshest build.
+          TAG="latest"
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} exists; clobbering its assets"
+            # --latest re-asserts the "Latest" badge on this release; the
+            # per-commit release above used --latest=false so it can't steal it.
+            gh release edit "${TAG}" \
+              --target "${{ github.sha }}" \
+              --latest \
+              --notes "Tracks ${BUILD_TAG} — auto-published from ${{ github.sha }}."
+            gh release upload "${TAG}" --clobber "${ASSETS[@]}"
+          else
+            echo "Release ${TAG} missing; creating"
+            gh release create "${TAG}" \
+              --title "Latest" \
+              --target "${{ github.sha }}" \
+              --latest \
+              --notes "Tracks ${BUILD_TAG} — auto-published from ${{ github.sha }}." \
+              "${ASSETS[@]}"
+          fi
+          echo "Published ${BUILD_TAG} and updated ${TAG}."

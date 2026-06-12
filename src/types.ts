@@ -1,0 +1,59 @@
+export type Source = "claude_code" | "codex" | "cursor";
+
+export type MessageType = "user" | "assistant";
+
+export interface TokenEvent {
+  user: string;
+  source: Source;
+  sessionId: string;
+  messageId: string;
+  requestId: string | null;
+  timestamp: number;
+  model: string;
+  /**
+   * User-message events carry zero in all token buckets (source logs only
+   * attribute tokens to assistant turns). Older daemons omit this field;
+   * it defaults to "assistant" so their payloads keep working.
+   */
+  messageType: MessageType;
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  reasoningTokens: number | null;
+  /**
+   * Pre-computed cost in USD micros (1 USD = 1_000_000), for sources that
+   * ship per-event cost (Cursor's totalCents includes max-mode multipliers
+   * PricingCache can't replicate). Null/omitted → priced via PricingCache,
+   * the Claude Code + Codex path.
+   */
+  costUsdMicros?: number | null;
+}
+
+export interface IngestRequest {
+  events: TokenEvent[];
+}
+
+export interface IngestResponse {
+  inserted: number;
+  duplicates: number;
+}
+
+export interface FileState {
+  path: string;
+  mtimeMs: number;
+  byteOffset: number;
+  lastSessionTotals?: {
+    sessionId: string;
+    inputTokens: number;
+    outputTokens: number;
+    cachedInputTokens: number;
+    reasoningTokens: number;
+  };
+}
+
+export interface DaemonState {
+  schemaVersion: 1;
+  files: Record<string, FileState>;
+  lastFlushAt: number;
+}
