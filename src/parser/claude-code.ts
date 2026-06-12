@@ -1,4 +1,5 @@
 import type { TokenEvent } from "../types.ts";
+import { readNewlineLines } from "./read-slice.ts";
 
 export interface ParseClaudeCodeOptions {
   path: string;
@@ -65,30 +66,19 @@ export async function parseClaudeCodeFile(
     return { events: [], newOffset: totalSize, seenDedupKeys: [] };
   }
 
-  const slice = file.slice(byteOffset);
-  const text = await slice.text();
-
-  // Find offset of the last newline within `text`. Anything after it is a
-  // partial line we shouldn't consume yet.
-  const lastNewline = text.lastIndexOf("\n");
-  const consumeUpTo = lastNewline === -1 ? 0 : lastNewline + 1;
-  const consumable = text.slice(0, consumeUpTo);
-  // Bun.file slices are byte-accurate; .text() gives UTF-8 decoded string.
-  // Compute byte length of consumed prefix to advance offset correctly.
-  const consumedBytes = Buffer.byteLength(consumable, "utf8");
-  const newOffset = byteOffset + consumedBytes;
-
   const events: TokenEvent[] = [];
   const seenDedupKeys: string[] = [];
   const localSeen = new Set<string>();
+  // Advance only past fully-terminated lines; a partial trailing line keeps
+  // the offset put so the next read re-consumes it once it's complete.
+  let newOffset = byteOffset;
 
-  if (consumable.length === 0) {
-    return { events, newOffset, seenDedupKeys };
-  }
+  // Read line-by-line in capped windows so an oversized file never lands as
+  // one string and we never build a giant per-chunk line array.
+  for await (const { line, newOffset: off } of readNewlineLines(file, byteOffset)) {
+    newOffset = off;
+    if (line === null) continue;
 
-  const lines = consumable.split("\n");
-  for (const line of lines) {
-    if (line.length === 0) continue;
     let raw: RawCCRecord;
     try {
       raw = JSON.parse(line) as RawCCRecord;
