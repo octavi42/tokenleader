@@ -65,19 +65,25 @@ jobs:
           ls -lh bin/
 
       - name: Guard (b) — built binaries report the tag
-        # arm64 runs natively on the macos-14 arm64 runner; the x64 binary
-        # runs under Rosetta 2 (preinstalled on GitHub's arm64 macOS images).
-        # `--version` prints "<BUILD_VERSION> <BUILD_SHA> <platformKey>".
+        # arm64 runs natively on the macos-14 arm64 runner and is executed
+        # for the real --version check. The x64 binary cannot be executed
+        # here: Rosetta 2 on macOS 14 lacks AVX2, which Bun's darwin-x64
+        # (non-baseline) builds use — it dies with SIGILL (exit 132). Every
+        # Intel Mac since 2013 has AVX2, so the binary is fine in the
+        # field; verify its baked tag by byte inspection instead.
         run: |
           set -euo pipefail
-          for bin in bin/tokenleader-darwin-arm64 bin/tokenleader-darwin-x64; do
-            got="$("${bin}" --version | awk '{print $1}')"
-            if [ "${got}" != "${GITHUB_REF_NAME}" ]; then
-              echo "guard (b) failed: ${bin} --version reports '${got}', tag is '${GITHUB_REF_NAME}'" >&2
-              exit 1
-            fi
-            echo "guard (b) ok: ${bin} -> ${got}"
-          done
+          got="$(bin/tokenleader-darwin-arm64 --version | awk '{print $1}')"
+          if [ "${got}" != "${GITHUB_REF_NAME}" ]; then
+            echo "guard (b) failed: arm64 --version reports '${got}', tag is '${GITHUB_REF_NAME}'" >&2
+            exit 1
+          fi
+          echo "guard (b) ok: bin/tokenleader-darwin-arm64 -> ${got} (executed)"
+          if ! grep -q "${GITHUB_REF_NAME}" bin/tokenleader-darwin-x64; then
+            echo "guard (b) failed: tag '${GITHUB_REF_NAME}' not embedded in the x64 binary" >&2
+            exit 1
+          fi
+          echo "guard (b) ok: bin/tokenleader-darwin-x64 -> ${GITHUB_REF_NAME} (embedded-bytes check; not executable on this runner)"
 
       - name: Build manifest.json (dual shape)
         run: bun scripts/make-manifest.ts --version "${GITHUB_REF_NAME}" --bin-dir bin --out bin/manifest.json
