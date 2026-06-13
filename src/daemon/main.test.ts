@@ -1100,6 +1100,57 @@ describe("--version flag", () => {
     }
     expect(lines).toEqual([versionLine(), versionLine()]);
   });
+
+  test("bare `main([])` with no daemon env prints usage and exits 0 (not a config error)", async () => {
+    const origLog = console.log;
+    const origUser = process.env.TOKENLEADER_USER;
+    const lines: string[] = [];
+    console.log = (...args: unknown[]) => {
+      lines.push(args.join(" "));
+    };
+    delete process.env.TOKENLEADER_USER;
+    try {
+      // launchd always sets TOKENLEADER_USER; without it a bare run is a
+      // human who typed `tokenleader` → friendly usage, not exit 1.
+      expect(await main([])).toBe(0);
+    } finally {
+      console.log = origLog;
+      if (origUser !== undefined) process.env.TOKENLEADER_USER = origUser;
+    }
+    const text = lines.join("\n");
+    expect(text).toContain("Usage:");
+    expect(text).toContain("link");
+    expect(text).toContain("devices");
+    expect(text).toContain("revoke");
+  });
+
+  test("`main(['help'])` / `--help` print usage and exit 0", async () => {
+    const origLog = console.log;
+    const lines: string[] = [];
+    console.log = (...args: unknown[]) => lines.push(args.join(" "));
+    try {
+      expect(await main(["help"])).toBe(0);
+      expect(await main(["--help"])).toBe(0);
+    } finally {
+      console.log = origLog;
+    }
+    expect(lines.filter((l) => l.includes("Usage:")).length).toBe(2);
+  });
+
+  test("an unknown command prints an error to stderr and exits 1", async () => {
+    const origErr = console.error;
+    const origLog = console.log;
+    const errs: string[] = [];
+    console.error = (...args: unknown[]) => errs.push(args.join(" "));
+    console.log = () => {};
+    try {
+      expect(await main(["frobnicate"])).toBe(1);
+    } finally {
+      console.error = origErr;
+      console.log = origLog;
+    }
+    expect(errs.join("\n")).toContain("unknown command: frobnicate");
+  });
 });
 
 // ---------------------------------------------------------------------------

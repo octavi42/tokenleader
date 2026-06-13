@@ -450,6 +450,29 @@ export async function runDaemon(cfg: ResolvedConfig, deps: RunDeps = {}): Promis
   log.info("daemon_shutdown");
 }
 
+/** Top-level CLI usage. Printed for `tokenleader`, `tokenleader help`,
+ *  `-h/--help`, and unknown commands. The background daemon is managed by
+ *  launchd (the install script sets it up), so the commands a human runs by
+ *  hand are just the device subcommands. */
+export function printCliUsage(err?: string): void {
+  const out = err ? console.error : console.log;
+  if (err) console.error(`tokenleader: ${err}\n`);
+  out(`tokenleader — team token-usage leaderboard (daemon + CLI)
+
+Usage:
+  tokenleader <command>
+
+Commands:
+  link              Mint a one-time code to add another machine to your handle
+  devices           List the machines posting under your handle
+  revoke <id>       Revoke a machine (lost / stolen / retired)
+  --version, -v     Print the daemon version
+
+The background daemon is installed and run for you by the install script
+(launchd) — you don't start it by hand. Re-run the install one-liner from
+your leaderboard's dashboard to (re)install it.`);
+}
+
 export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
   // Handled before resolveConfig so it works with no env set;
   // CI's release guard parses field 1 of this line.
@@ -460,8 +483,28 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
 
   // Multi-device subcommands (link/devices/revoke) run in the user's shell,
   // not under launchd — they resolve user/endpoint from env or the plist.
-  if (argv[0] && (CLI_COMMANDS as readonly string[]).includes(argv[0])) {
-    return runCliCommand(argv[0] as CliCommand, argv.slice(1));
+  const sub = argv[0];
+  if (sub && (CLI_COMMANDS as readonly string[]).includes(sub)) {
+    return runCliCommand(sub as CliCommand, argv.slice(1));
+  }
+
+  // Friendly top-level usage. The same binary is BOTH the launchd-run daemon
+  // and the user-facing CLI, so we must tell them apart: launchd always sets
+  // TOKENLEADER_USER (from the plist), so a bare invocation WITHOUT it is a
+  // human who typed `tokenleader` — show usage instead of a daemon config
+  // error. An explicit help flag always shows usage; any other unrecognized
+  // argument is a usage error.
+  if (sub === "help" || argv.includes("-h") || argv.includes("--help")) {
+    printCliUsage();
+    return 0;
+  }
+  if (sub) {
+    printCliUsage(`unknown command: ${sub}`);
+    return 1;
+  }
+  if (!process.env.TOKENLEADER_USER) {
+    printCliUsage();
+    return 0;
   }
 
   let cfg: ResolvedConfig;
