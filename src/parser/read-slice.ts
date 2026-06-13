@@ -23,11 +23,11 @@ const NEWLINE = 0x0a;
 const decoder = new TextDecoder();
 
 /**
- * Largest byte window read at once — and therefore the largest single line we
- * can decode. Kept well under the ~512 MiB string-length ceiling where the
- * compiled daemon was observed to abort. A line longer than this can't be
- * materialized safely, so it is discarded (see below) rather than risking the
- * abort; multi-MB tool-result records stay comfortably within the window.
+ * Largest record (line content, excluding the newline) we materialize as one
+ * string. Kept well under the ~512 MiB string-length ceiling where the compiled
+ * daemon was observed to abort. A record longer than this can't be held safely,
+ * so it is discarded (see below) rather than risking the abort; multi-MB
+ * tool-result records stay comfortably within it.
  */
 export const MAX_READ_BYTES = 64 * 1024 * 1024;
 
@@ -73,7 +73,10 @@ export async function* readNewlineLines(
   let discardStart = -1;
 
   while (offset < totalSize) {
-    const end = Math.min(totalSize, offset + maxBytes);
+    // Read one byte past `maxBytes` so a record whose content is exactly
+    // `maxBytes` long still has its terminating newline inside the window
+    // (records up to `maxBytes` are kept; only longer ones are discarded).
+    const end = Math.min(totalSize, offset + maxBytes + 1);
     const bytes = await file.slice(offset, end).bytes();
 
     const lastNewline = bytes.lastIndexOf(NEWLINE);

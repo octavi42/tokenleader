@@ -92,6 +92,19 @@ describe("readNewlineLines", () => {
     expect(r.newOffset).toBe(Buffer.byteLength(body, "utf8")); // reached EOF
   });
 
+  it("keeps a record whose content is exactly maxBytes; drops one byte longer", async () => {
+    // Boundary: content length == maxBytes must fit (its newline sits at the
+    // extra read byte); content length == maxBytes + 1 overflows and is dropped.
+    const atLimit = "x".repeat(8);
+    const overLimit = "y".repeat(9);
+    const body = `${atLimit}\n${overLimit}\nz\n`;
+    const path = await tempFile(body);
+    const r = await drain(path, 0, 8);
+    expect(r.lines).toEqual([atLimit, "z"]); // the over-limit record is gone
+    expect(r.oversize).toBe(1);
+    expect(r.newOffset).toBe(Buffer.byteLength(body, "utf8"));
+  });
+
   it("does not yield the JSON suffix of an oversized line as a record", async () => {
     // A 200-char line of spaces ending in a real JSON object: with a small
     // window the line overflows, so the whole record (suffix included) must be
